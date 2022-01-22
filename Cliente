@@ -1,0 +1,28 @@
+import socket, psutil, pickle
+host = socket.gethostname()
+porta = 9999
+
+
+s = socket.socket()
+try:
+
+    s.connect((host, porta))
+except Exception as erro:
+    print(str(erro))
+
+
+print('Conexão efetuada com',host)
+
+msg = s.recv(1024)
+print(msg.decode('utf-8'))
+while True:
+    
+    menu = input('Digite a opção que deseja monitorar:')
+    s.send(menu.encode('utf-8')) 
+    
+    bytes = s.recv(1000000)
+    lista = pickle.loads(bytes)
+    if lista:
+        for item in lista:
+            print(item)
+    
