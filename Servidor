@@ -1,0 +1,236 @@
+import pickle
+import re
+import socket, psutil, cpuinfo, time, subprocess, sched, platform, nmap
+
+def print_pids():
+    pass
+
+def print_pasta():
+    
+    pass
+
+
+
+def convert_bytes(size):
+    for x in ['bytes', 'KB', 'MB', 'GB', 'TB']:
+       if size < 1024.0:
+            return "%3.1f %s" % (size, x)
+    size /= 1024.0
+
+    return size
+
+
+socket_servidor = socket.socket()
+socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
+host = socket.gethostname()
+porta = 9999
+
+socket_servidor.bind((host, porta))
+
+socket_servidor.listen()
+print("Servidor", host, "esperando conexão na porta", porta)
+
+(socket_cliente,addr) = socket_servidor.accept()
+print("Conectado a:", str(addr))
+
+while True:
+    info = ("\n 1 - Informações sobre o processo notepad \n 2 - Informações sobre processos \n 3 - Informações sobre escalonamento \n 4- Informações sobre sub-rede \n 5-  Informações sobre as intefaces de rede \n 6- Informações sobre o processador \n 7- Informações sobre a memória \n 8- Informações sobre o disco \n  Pressione $ para encerrar a conexão")
+    socket_cliente.send(info.encode('utf-8'))
+    msg = socket_cliente.recv(1024)
+    print(msg)
+    if '$' == msg.decode('UTF-8'):
+        info = ('Conexão encerrada')
+        socket_cliente.send(info.encode('utf-8'))
+        print("Fechando conexao com", str(addr))
+        for x in range(0,3):
+            print('.')
+            time.sleep(1)
+        socket_cliente.close()
+        break
+    if '1' == msg.decode('UTF-8'):
+        info1 =('Usuario solicitou Informações sobre o processo notepad')
+
+        pid = subprocess.Popen('notepad').pid
+        p = psutil.Process(pid)
+
+        lista_processos = []
+        name = ('Nome:', p.name())
+        name_exeprint = ('Nome do Executável:', p.exe())
+        TIME = ('Tempo de criação:', time.ctime(p.create_time()))
+        TIME_sys = ('Tempo de sistema:', p.cpu_times().system, 's')
+        p_m = '{:.2f}'.format(p.memory_percent())
+        uso_mem = ('Percentual de uso de memória:', p_m, '%')
+        uso_cpu = ('Percentual de uso de CPU:', p.cpu_percent(interval=1.0), '%')
+        threads = ('Número de threads:', p.num_threads())
+        conv = '{:.2f}'.format(p.memory_info().rss/1024/1024)
+        mem_uso = ('Uso de memória:', conv, 'MB')
+
+        lista_processos.append(name)
+        lista_processos.append(name_exeprint)
+        lista_processos.append(TIME)
+        lista_processos.append(TIME_sys)
+        lista_processos.append(p_m)
+        lista_processos.append(uso_mem)
+        lista_processos.append(uso_cpu)
+        lista_processos.append(threads)
+        lista_processos.append(mem_uso)
+
+        bytes = pickle.dumps(lista_processos)
+        socket_cliente.send(bytes)
+        print(info1)
+        break
+
+    if '2' == msg.decode('UTF-8'):
+        info2 = ('Usuario solicitou Informações sobre os processos')
+   
+        processos = psutil.process_iter(['pid', 'name', 'username'])
+        processos = list(processos)
+        processos_info = []
+        for processo in processos:
+            processo_atual = {
+                0 : '',
+                1 : '',
+                2 : '',
+                3 : ''
+            }
+            processo_atual[0] = processo.info['pid']
+            processo_atual[1] = processo.info['name']
+            if psutil.pid_exists(processo.info['pid']):
+                processo_atual[2] = convert_bytes(psutil.Process(processo.info['pid']).memory_info()[0])
+                processo_atual[3] = psutil.Process(processo.info['pid']).cpu_percent()
+            else:
+                pass
+            processos_info.append(processo_atual)
+
+
+        bytes = pickle.dumps(processos_info)
+        socket_cliente.send(bytes)
+        print(info2)
+        break
+
+    if '3' == msg.decode('UTF-8'):
+        info3 = ('Usuário solicitou informações sobre escalonamento')
+        scheduler = sched.scheduler(time.time, time.sleep)
+        resultado = []
+        inicio = time.time()
+        scheduler.enter(1, 1, print_pids)
+        scheduler.enter(2, 1, print_pasta)
+        scheduler.run()
+        fim = time.time()
+        duracao = fim - inicio
+
+    
+        result = f'Duração da função escalonada em segundos: {duracao}.'
+        resultado.append(result)
+        bytes = pickle.dumps(resultado)
+        socket_cliente.send(bytes)
+        print(info3)
+        break
+
+    if '4' == msg.decode('UTF-8'):
+        info4 = ('Usuário solicitou informações sobre  sub-rede')
+        info_redes = psutil.net_io_counters(pernic=True)
+        redes = []
+        nomes = []
+        for info in info_redes:
+            nomes.append(str(info))
+        for nome in nomes:
+            rede = {'nome': nome, 'enviado': info_redes[nome][0], 'recebido': info_redes[nome][1]}
+            redes.append(rede)
+        bytes = pickle.dumps(redes)
+        socket_cliente.send(bytes)
+        print(info4)
+        break
+
+    if '5' == msg.decode('UTF-8'):
+        info5 = ('Usuário solicitou informações sobre interfaces de rede')
+        
+        dados = psutil.net_io_counters(pernic=True)
+        info_dados = []
+        for x in dados:
+            info_dados.append(str(x))
+        for y in info_dados:
+            print(y)
+            print("\t"+str(dados[y]))
+        for i in range(4):
+            time.sleep(1)
+            dados_true = psutil.net_io_counters(pernic=True)
+        for z in info_dados:
+            print(z)
+            print("\t"+str(dados_true[z]))
+        info_dados.append(dados_true)
+
+        bytes = pickle.dumps(info_dados)
+        socket_cliente.send(bytes)
+        print(info5)
+        break
+
+    if '6'== msg.decode('UTF-8'):
+        info6 = ('Usuário solicitou informações sobre CPU')
+
+        cpu_info = []
+        cpu = cpuinfo.get_cpu_info()
+        cpu_porcentagem_por_nucleo = psutil.cpu_percent(interval=1, percpu=True)
+        cpu_info.append('Arquitetura: ' + str(cpu['arch']))
+        cpu_info.append('Modelo da CPU: ' + str(cpu['brand_raw']))
+        cpu_info.append('Palavra: ' + str(cpu['bits']))
+        cpu_info.append('Frequência total: ' + str(cpu['hz_advertised']))
+        cpu_info.append('Frequência de uso: ' + str(cpu['hz_actual']))
+        cpu_info.append('Número de núcleos lógicos: ' + str(cpu['count']))
+        cpu_info.append('Número de núcleos físicos: ' +  str(psutil.cpu_count(logical=False)))
+        cpu_info.append('Porcentagem: ' + str(cpu_porcentagem_por_nucleo))
+
+        bytes = pickle.dumps(cpu_info)
+        socket_cliente.send(bytes)
+        print(info6)
+        break
+
+    if '7' == msg.decode('UTF-8'):
+        info7 = ('Usuário solicitou informações sobre a memória')
+
+        memoria_info = []
+        memoria = psutil.virtual_memory()
+        memoria_total = round(memoria.total / (1024 * 1024 * 1024), 2)
+        memoria_disponivel = round(memoria.available / (1024 * 1024 * 1024), 2)
+        memoria_uso = memoria_total - memoria_disponivel
+        memoria_porcentagem = round(memoria_uso * 100 / memoria_total, 2)
+        memoria_info.append('Total de memória: ' + str(memoria_total))
+        memoria_info.append('Memória disponível: ' + str(memoria_disponivel))
+        memoria_info.append('Memória em uso: ' + str(memoria_uso))
+        memoria_info.append('Porcentagem: ' + str(memoria_porcentagem))
+
+        bytes = pickle.dumps(memoria_info)
+        socket_cliente.send(bytes)
+        print(info7)
+        break
+
+    if '8' == msg.decode('UTF-8'):
+        info8 = ('Usuário solicitou informações sobre o disco')
+
+        
+        disco_info = []
+        disco = psutil.disk_usage('.')
+        disco_total = round(disco.total, 2)
+        disco_disponivel = round(disco.free, 2)
+        disco_uso = round(disco.used, 2)
+        disco_percentual_usado = round(disco.percent, 2)
+        disco_info.append('Disco total: ' + str(convert_bytes(disco_total)))
+        disco_info.append('Disponível em disco: ' + str(convert_bytes(disco_disponivel)))
+        disco_info.append('Disco em uso: ' + str(convert_bytes(disco_uso)))
+        disco_info.append('Porcentagem: ' + str(convert_bytes(disco_percentual_usado)))
+
+        bytes = pickle.dumps(disco_info)
+        socket_cliente.send(bytes)
+        print(info8)
+        break
+
+        
+    else:
+        dif =('O usuário Digitou opções invalidas.')
+        socket_cliente.send(dif.encode('utf-8')) 
+        socket_cliente.send(info.encode('utf-8')) 
+        print('O usuário Digitou opções invalidas.')
+        break
+socket_servidor.close()
